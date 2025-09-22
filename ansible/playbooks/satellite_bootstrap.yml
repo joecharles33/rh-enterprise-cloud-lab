@@ -1,0 +1,61 @@
+---
+- name: Bootstrap Red Hat Satellite (filesystems + install)
+  hosts: "tag_Name_{{ lookup('file', 'ansible/terraform_outputs.json') | from_json | json_query('satellite_hostname.value') | default('satellite') }}"
+  # The above hosts selector is illustrative. In practice use groups from aws_ec2 or target by Name tag.
+  hosts: all
+  gather_facts: no
+  become: yes
+  vars:
+    pulp_device: "/dev/sdf"
+    satellite_org: "YourOrg"
+    satellite_location: "PrimaryDC"
+    satellite_admin_user: "admin"
+    satellite_admin_pass: "ChangeMe123!"   # Use Ansible Vault in real use
+    enable_repos_cmd: >-
+      subscription-manager repos
+      --enable=rhel-9-for-x86_64-baseos-rpms
+      --enable=rhel-9-for-x86_64-appstream-rpms
+      --enable=satellite-6.15-for-rhel-9-x86_64-rpms
+  tasks:
+    - name: Ensure xfsprogs present
+      package:
+        name: xfsprogs
+        state: present
+
+    - name: Create XFS on pulp device if empty
+      filesystem:
+        fstype: xfs
+        dev: "{{ pulp_device }}"
+      register: mkfs_result
+      failed_when: false
+
+    - name: Ensure /var/lib/pulp exists
+      file:
+        path: /var/lib/pulp
+        state: directory
+        mode: "0755"
+
+    - name: Mount pulp volume
+      mount:
+        path: /var/lib/pulp
+        src: "{{ pulp_device }}"
+        fstype: xfs
+        state: mounted
+
+    - name: Enable Satellite repos
+      command: "{{ enable_repos_cmd }}"
+
+    - name: Install Satellite package
+      package:
+        name: satellite
+        state: present
+
+    - name: Run satellite-installer
+      command: >-
+        satellite-installer --scenario satellite
+        --foreman-initial-organization "{{ satellite_org }}"
+        --foreman-initial-location "{{ satellite_location }}"
+        --foreman-initial-admin-username "{{ satellite_admin_user }}"
+        --foreman-initial-admin-password "{{ satellite_admin_pass }}"
+      args:
+        creates: /etc/foreman-installer/scenarios.d/satellite-answers.yaml

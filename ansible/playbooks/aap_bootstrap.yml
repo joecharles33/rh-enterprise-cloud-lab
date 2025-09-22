@@ -1,0 +1,7 @@
+---
+- name: Bootstrap AAP nodes (placeholder)
+  hosts: tag_Name_*aap*
+  become: yes
+  tasks:
+    - debug:
+        msg: "Install AAP bundle here per your license & inventory (controller/hub/eda)."

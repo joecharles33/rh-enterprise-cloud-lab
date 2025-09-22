@@ -1,0 +1,7 @@
+# This file is overwritten by scripts/export_tf_to_ansible.sh after terraform apply.
+# Keeping defaults here for first-run clarity.
+ssh_key_name: ""
+ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/.ssh/{{ ssh_key_name }}.pem"
+bastion_user: "ec2-user"
+linux_user: "ec2-user"
+# ansible_ssh_common_args set by export script using bastion public IP

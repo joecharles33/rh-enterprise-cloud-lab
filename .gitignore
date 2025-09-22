@@ -1,0 +1,7 @@
+.terraform/
+.terraform.lock.hcl
+*.tfstate*
+*.tfplan
+terraform_outputs.json
+ansible/.vault_pass
+__pycache__/

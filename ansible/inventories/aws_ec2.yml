@@ -1,0 +1,12 @@
+plugin: amazon.aws.aws_ec2
+regions:
+  - "{{ lookup('env','AWS_REGION') | default('us-east-1', true) }}"
+keyed_groups:
+  - key: tags.Name
+    prefix: name_
+hostnames:
+  - private-ip-address
+compose:
+  ansible_host: private_ip_address
+filters:
+  "tag:Project": "RH-Enterprise-Cloud-Lab"

@@ -1,0 +1,10 @@
+output "bastion_public_ip"   { value = module.compute.bastion_public_ip }
+output "bastion_key_name"    { value = var.key_name }
+output "linux_user"          { value = var.linux_user }
+output "bastion_user"        { value = var.bastion_user }
+output "target_private_ips"  { value = module.compute.target_private_ips }
+output "aap_private_ips"     { value = module.compute.aap_private_ips }
+output "satellite_private_ip"{ value = module.satellite.satellite_private_ip }
+output "satellite_public_ip" { value = module.satellite.satellite_public_ip }
+output "satellite_hostname"  { value = module.satellite.satellite_hostname }
+output "vpc_id"              { value = module.network.vpc_id }
