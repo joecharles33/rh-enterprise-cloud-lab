@@ -1,12 +1,17 @@
+# Dynamic inventory using AWS
 plugin: amazon.aws.aws_ec2
 regions:
-  - "{{ lookup('env','AWS_REGION') | default('us-east-1', true) }}"
+  - us-east-1
+filters:
+  "tag:Project": "rh-enterprise-cloud-lab"
+  "tag:Environment": "dev"
+compose:
+  ansible_host: private_ip_address    # connect to private IPs (we'll ProxyJump via bastion)
 keyed_groups:
-  - key: tags.Name
-    prefix: name_
+  - key: tags.Role
+    prefix: role                      # creates groups: role_ansible, role_eda, role_rhel, role_satellite
 hostnames:
   - private-ip-address
-compose:
-  ansible_host: private_ip_address
-filters:
-  "tag:Project": "RH-Enterprise-Cloud-Lab"
+  - tags.Name
+strict: False
+

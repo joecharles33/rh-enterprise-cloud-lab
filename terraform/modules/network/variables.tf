@@ -1,5 +1,18 @@
-variable "name_prefix"         { type = string }
-variable "vpc_cidr"            { type = string }
-variable "public_subnet_cidr"  { type = string }
-variable "private_subnet_cidr" { type = string }
-variable "tags"                { type = map(string), default = {} }
+variable "vpc_cidr" {
+  type = string
+}
+variable "public_subnet_cidr" {
+  type = string
+}
+variable "private_subnet_cidr" {
+  type = string
+}
+variable "az" {
+  type = string
+}
+variable "project" {
+  type = string
+}
+variable "env" {
+  type = string
+}

@@ -1,0 +1,6 @@
+---
+aws_region: us-east-1
+tf_state_bucket: ""
+tf_lock_table: ""
+force_recreate: false
+

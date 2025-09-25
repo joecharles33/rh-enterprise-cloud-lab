@@ -2,25 +2,81 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TF_DIR="${ROOT_DIR}/terraform/root"
-ANSIBLE_DIR="${ROOT_DIR}/ansible"
-OUT_JSON="${ANSIBLE_DIR}/terraform_outputs.json"
+OUT="${ROOT_DIR}/ansible/inventories/lab.ini"
 
-terraform -chdir="${TF_DIR}" output -json > "${OUT_JSON}"
-echo "Wrote ${OUT_JSON}"
+cd "${ROOT_DIR}"
 
-GV="${ANSIBLE_DIR}/group_vars/all.yml"
-cat > "${GV}" <<'YAML'
-# Auto-generated vars pulling from terraform_outputs.json
-ssh_key_name: "{{ (lookup('file', 'ansible/terraform_outputs.json') | from_json).bastion_key_name.value }}"
-ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/.ssh/{{ ssh_key_name }}.pem"
+# require jq
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
-bastion_user: "{{ (lookup('file', 'ansible/terraform_outputs.json') | from_json).bastion_user.value }}"
-linux_user:   "{{ (lookup('file', 'ansible/terraform_outputs.json') | from_json).linux_user.value }}"
+BASTION_IP=$(terraform -chdir=terraform/root output -raw bastion_public_ip 2>/dev/null || true)
+ALL_JSON=$(terraform -chdir=terraform/root output -json all_nodes_by_name)
 
-# Use ProxyJump to reach private instances via the bastion public IP
-ansible_ssh_common_args: >-
-  -o ProxyJump={{ bastion_user }}@{{ (lookup('file', 'ansible/terraform_outputs.json') | from_json).bastion_public_ip.value }}
-YAML
+# helpers
+get_by_role() {
+  local role="$1" key="$2"
+  echo "${ALL_JSON}" | jq -r --arg role "${role}" --arg key "${key}" '
+    to_entries
+    | map(select(.value.role == $role))
+    | map(.value[$key])
+    | map(select(. != null and . != ""))
+    | .[]
+  ' 2>/dev/null || true
+}
 
-echo "Wrote ${GV}"
+# build groups
+ANSIBLE_PRIV=$(get_by_role ansible private_ip | paste -sd' ' -)
+EDA_PRIV=$(get_by_role eda private_ip | paste -sd' ' -)
+PAH_PRIV=$(get_by_role pah private_ip | paste -sd' ' -)
+DB_PRIV=$(get_by_role "aap-db" private_ip | paste -sd' ' -)
+RHEL_PRIV=$(get_by_role rhel private_ip | paste -sd' ' -)
+
+# satellite needs public reachability
+SAT_PUB=$(echo "${ALL_JSON}" | jq -r '
+  to_entries | map(select(.value.role=="satellite")) |
+  map("\(.key) ansible_host=\(.value.public_ip) private_ip=\(.value.private_ip)") | .[]
+' 2>/dev/null || true)
+
+mkdir -p "$(dirname "${OUT}")"
+{
+  echo "# Generated from terraform outputs"
+  echo "[bastion]"
+  [ -n "${BASTION_IP:-}" ] && echo "bastion ansible_host=${BASTION_IP} ansible_user=ec2-user" || echo "# (no bastion ip yet)"
+  echo
+
+  echo "[controller]"
+  for ip in ${ANSIBLE_PRIV:-}; do echo "${ip}"; done
+  echo
+
+  echo "[eda]"
+  for ip in ${EDA_PRIV:-}; do echo "${ip}"; done
+  echo
+
+  echo "[pah]"
+  for ip in ${PAH_PRIV:-}; do echo "${ip}"; done
+  echo
+
+  echo "[db]"
+  for ip in ${DB_PRIV:-}; do echo "${ip}"; done
+  echo
+
+  echo "[rhel]"
+  for ip in ${RHEL_PRIV:-}; do echo "${ip}"; done
+  echo
+
+  echo "[satellite]"
+  if [ -n "${SAT_PUB}" ]; then
+    echo "${SAT_PUB}"
+  fi
+  echo
+
+  echo "[lab:children]"
+  echo "controller"
+  echo "eda"
+  echo "pah"
+  echo "db"
+  echo "rhel"
+} > "${OUT}"
+
+echo "Wrote ${OUT}"
+

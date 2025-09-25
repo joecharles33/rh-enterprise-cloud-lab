@@ -1,85 +1,123 @@
-resource "aws_security_group" "bastion" {
-  name        = var.bastion_sg_name
-  description = "Bastion access"
+resource "aws_security_group" "admin_ingress" {
+  name        = "${var.project}-${var.env}-admin-ingress"
+  description = "Allow SSH and ICMP from admin CIDR"
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "SSH from admin CIDR"
+    description = "SSH from admin"
+    protocol    = "tcp"
     from_port   = 22
     to_port     = 22
-    protocol    = "tcp"
     cidr_blocks = [var.admin_cidr]
   }
-  egress { from_port = 0 to_port = 0 protocol = "-1" cidr_blocks = ["0.0.0.0/0"] }
-  tags = merge(var.tags, { Name = var.bastion_sg_name })
+
+  ingress {
+    description = "ICMP echo"
+    protocol    = "icmp"
+    from_port   = 8
+    to_port     = 0
+    cidr_blocks = [var.admin_cidr]
+  }
+
+  egress {
+    description = "All egress"
+    protocol    = "-1"
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project}-${var.env}-sg-admin"
+  }
 }
 
-resource "aws_security_group" "target" {
-  name        = "${var.name_prefix}-target-sg"
-  description = "Target access"
+resource "aws_security_group" "intra_vpc" {
+  name        = "${var.project}-${var.env}-intra"
+  description = "Allow all traffic within VPC"
   vpc_id      = var.vpc_id
 
   ingress {
-    description     = "SSH from bastion"
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion.id]
+    protocol    = "-1"
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = [var.vpc_cidr]
   }
-  egress { from_port = 0 to_port = 0 protocol = "-1" cidr_blocks = ["0.0.0.0/0"] }
-  tags = merge(var.tags, { Name = "${var.name_prefix}-target-sg" })
-}
 
-resource "aws_security_group" "aap" {
-  name        = "${var.name_prefix}-aap-sg"
-  description = "AAP UI/API"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "HTTPS from admin CIDR"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+  egress {
+    protocol    = "-1"
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = ["0.0.0.0/0"]
   }
-  egress { from_port = 0 to_port = 0 protocol = "-1" cidr_blocks = ["0.0.0.0/0"] }
-  tags = merge(var.tags, { Name = "${var.name_prefix}-aap-sg" })
+
+  tags = {
+    Name = "${var.project}-${var.env}-sg-intra"
+  }
 }
 
 resource "aws_security_group" "satellite" {
-  name        = "${var.name_prefix}-satellite-sg"
-  description = "Satellite access"
+  name        = "${var.project}-${var.env}-satellite"
+  description = "Satellite public access + internal control ports"
   vpc_id      = var.vpc_id
 
-  dynamic "ingress" {
-    for_each = var.satellite_public ? [1] : []
-    content {
-      description = "HTTPS from admin CIDR (public mode)"
-      from_port   = 443
-      to_port     = 443
-      protocol    = "tcp"
-      cidr_blocks = [var.admin_cidr]
-    }
-  }
-  dynamic "ingress" {
-    for_each = var.satellite_public ? [] : [1]
-    content {
-      description = "HTTPS from inside VPC (private mode)"
-      from_port   = 443
-      to_port     = 443
-      protocol    = "tcp"
-      cidr_blocks = [var.vpc_cidr]
-    }
-  }
-
+  # Public UI/content
   ingress {
-    description     = "SSH from bastion"
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion.id]
+    description = "HTTP"
+    protocol    = "tcp"
+    from_port   = 80
+    to_port     = 80
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "HTTPS"
+    protocol    = "tcp"
+    from_port   = 443
+    to_port     = 443
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  egress { from_port = 0 to_port = 0 protocol = "-1" cidr_blocks = ["0.0.0.0/0"] }
-  tags = merge(var.tags, { Name = "${var.name_prefix}-satellite-sg" })
+  # Internal Satellite ports
+  ingress {
+    description = "Puppet (8140)"
+    protocol    = "tcp"
+    from_port   = 8140
+    to_port     = 8140
+    cidr_blocks = [var.vpc_cidr]
+  }
+  ingress {
+    description = "Qpid/Agent (5647)"
+    protocol    = "tcp"
+    from_port   = 5647
+    to_port     = 5647
+    cidr_blocks = [var.vpc_cidr]
+  }
+  ingress {
+    description = "Smart Proxy (9090)"
+    protocol    = "tcp"
+    from_port   = 9090
+    to_port     = 9090
+    cidr_blocks = [var.vpc_cidr, var.admin_cidr]
+  }
+
+  # SSH for admin
+  ingress {
+    description = "SSH admin"
+    protocol    = "tcp"
+    from_port   = 22
+    to_port     = 22
+    cidr_blocks = [var.admin_cidr]
+  }
+
+  egress {
+    description = "All egress"
+    protocol    = "-1"
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project}-${var.env}-sg-satellite"
+  }
 }

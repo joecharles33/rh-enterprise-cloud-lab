@@ -1,0 +1,15 @@
+---
+- name: Bootstrap/Reset Terraform backend
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aws_region: us-east-1
+    tf_state_bucket: rh-enterprise-cloud-lab-tfstate-123456789012-dev
+    tf_lock_table: rh-enterprise-cloud-lab-tf-locks
+    force_recreate: true   # set false to skip deletion if found
+
+  roles:
+    - tf_backend
+

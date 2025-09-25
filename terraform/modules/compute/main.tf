@@ -1,90 +1,107 @@
-data "aws_ami" "rhel" {
-  count       = var.rhel_ami_id == "" && var.rhel_ami_name_regex != "" && length(var.rhel_ami_owners) > 0 ? 1 : 0
-  most_recent = true
-  owners      = var.rhel_ami_owners
-  filter { name = "name" values = [var.rhel_ami_name_regex] }
-  filter { name = "root-device-type" values = ["ebs"] }
-}
-
 locals {
-  ami_id = var.rhel_ami_id != "" ? var.rhel_ami_id : (length(data.aws_ami.rhel) > 0 ? data.aws_ami.rhel[0].id : "")
+  prefix = "${var.project}-${var.env}"
+
+  node_instances = flatten([
+    for gname, gdef in var.node_groups : [
+      for i in range(gdef.count) : {
+        name          = format("%s-%s-%02d", local.prefix, gname, i + 1)
+        group         = gname
+        role          = gdef.role
+        instance_type = gdef.instance_type
+        subnet_type   = gdef.subnet_type
+        subnet_id     = gdef.subnet_type == "public" ? var.subnet_public_id : var.subnet_private_id
+        public        = gdef.subnet_type == "public"
+      }
+    ]
+  ])
+
+  satellite_nodes = [
+    for n in local.node_instances : n if n.role == "satellite"
+  ]
+
+  other_nodes = [
+    for n in local.node_instances : n if n.role != "satellite"
+  ]
 }
 
 resource "aws_instance" "bastion" {
-  ami                         = local.ami_id
+  ami                         = data.aws_ami.rhel9.id
   instance_type               = var.bastion_instance_type
-  subnet_id                   = var.public_subnet_id
-  vpc_security_group_ids      = [var.sg_bastion_id]
+  subnet_id                   = var.subnet_public_id
+  vpc_security_group_ids      = [var.sg_admin_id, var.sg_intra_id]
   associate_public_ip_address = true
-  key_name                    = var.key_name
+  key_name                    = var.key_pair_name
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-bastion", Project = "RH-Enterprise-Cloud-Lab" })
+  user_data = templatefile("${path.module}/templates/bootstrap.tpl", {
+    hostname = "${local.prefix}-bastion"
+    role     = "bastion"
+    project  = var.project
+    env      = var.env
+  })
 
-  user_data = <<-CLOUD
-    #cloud-config
-    hostname: bastion.${var.internal_domain}
-    fqdn: bastion.${var.internal_domain}
-  CLOUD
+  tags = {
+    Name = "${local.prefix}-bastion"
+    Role = "bastion"
+  }
 }
 
-resource "aws_instance" "target" {
-  count                  = var.count_rhel_targets
-  ami                    = local.ami_id
-  instance_type          = var.target_instance_type
-  subnet_id              = var.private_subnet_id
-  vpc_security_group_ids = [var.sg_target_id]
-  key_name               = var.key_name
+resource "aws_instance" "satellite" {
+  for_each = { for n in local.satellite_nodes : n.name => n }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-rhel-${count.index + 1}", Project = "RH-Enterprise-Cloud-Lab" })
+  ami                         = data.aws_ami.rhel9.id
+  instance_type               = each.value.instance_type
+  subnet_id                   = var.subnet_public_id
+  vpc_security_group_ids      = [var.sg_satellite_id, var.sg_admin_id, var.sg_intra_id]
+  associate_public_ip_address = true
+  key_name                    = var.key_pair_name
 
-  user_data = <<-CLOUD
-    #cloud-config
-    hostname: rhel-${count.index + 1}.${var.internal_domain}
-    fqdn: rhel-${count.index + 1}.${var.internal_domain}
-  CLOUD
+  user_data = templatefile("${path.module}/templates/bootstrap.tpl", {
+    hostname = each.key
+    role     = "satellite"
+    project  = var.project
+    env      = var.env
+  })
+
+  tags = {
+    Name = each.key
+    Role = "satellite"
+  }
 }
 
-resource "aws_instance" "aap_controller" {
-  count                  = var.enable_aap ? 1 : 0
-  ami                    = local.ami_id
-  instance_type          = var.aap_controller_type
-  subnet_id              = var.private_subnet_id
-  vpc_security_group_ids = [var.sg_aap_id]
-  key_name               = var.key_name
-  tags = merge(var.tags, { Name = "${var.name_prefix}-aap-controller", Project = "RH-Enterprise-Cloud-Lab" })
-  user_data = <<-CLOUD
-    #cloud-config
-    hostname: aap-controller.${var.internal_domain}
-    fqdn: aap-controller.${var.internal_domain}
-  CLOUD
+resource "aws_eip" "satellite" {
+  for_each = var.satellite_use_eip ? aws_instance.satellite : {}
+  domain   = "vpc"
+
+  tags = {
+    Name = "${each.key}-eip"
+  }
 }
 
-resource "aws_instance" "aap_hub" {
-  count                  = var.enable_aap ? 1 : 0
-  ami                    = local.ami_id
-  instance_type          = var.aap_hub_type
-  subnet_id              = var.private_subnet_id
-  vpc_security_group_ids = [var.sg_aap_id]
-  key_name               = var.key_name
-  tags = merge(var.tags, { Name = "${var.name_prefix}-aap-hub", Project = "RH-Enterprise-Cloud-Lab" })
-  user_data = <<-CLOUD
-    #cloud-config
-    hostname: aap-hub.${var.internal_domain}
-    fqdn: aap-hub.${var.internal_domain}
-  CLOUD
+resource "aws_eip_association" "satellite" {
+  for_each      = var.satellite_use_eip ? aws_instance.satellite : {}
+  instance_id   = aws_instance.satellite[each.key].id
+  allocation_id = aws_eip.satellite[each.key].id
 }
 
-resource "aws_instance" "aap_eda" {
-  count                  = var.enable_aap ? 1 : 0
-  ami                    = local.ami_id
-  instance_type          = var.aap_eda_type
-  subnet_id              = var.private_subnet_id
-  vpc_security_group_ids = [var.sg_aap_id]
-  key_name               = var.key_name
-  tags = merge(var.tags, { Name = "${var.name_prefix}-aap-eda", Project = "RH-Enterprise-Cloud-Lab" })
-  user_data = <<-CLOUD
-    #cloud-config
-    hostname: aap-eda.${var.internal_domain}
-    fqdn: aap-eda.${var.internal_domain}
-  CLOUD
+resource "aws_instance" "lab_nodes" {
+  for_each = { for n in local.other_nodes : n.name => n }
+
+  ami                         = data.aws_ami.rhel9.id
+  instance_type               = each.value.instance_type
+  subnet_id                   = each.value.subnet_id
+  vpc_security_group_ids      = [var.sg_intra_id, var.sg_admin_id]
+  associate_public_ip_address = each.value.public
+  key_name                    = var.key_pair_name
+
+  user_data = templatefile("${path.module}/templates/bootstrap.tpl", {
+    hostname = each.key
+    role     = each.value.role
+    project  = var.project
+    env      = var.env
+  })
+
+  tags = {
+    Name = each.key
+    Role = each.value.role
+  }
 }
