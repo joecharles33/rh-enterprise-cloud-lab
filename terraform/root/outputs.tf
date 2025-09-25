@@ -1,10 +1,44 @@
-output "bastion_public_ip"   { value = module.compute.bastion_public_ip }
-output "bastion_key_name"    { value = var.key_name }
-output "linux_user"          { value = var.linux_user }
-output "bastion_user"        { value = var.bastion_user }
-output "target_private_ips"  { value = module.compute.target_private_ips }
-output "aap_private_ips"     { value = module.compute.aap_private_ips }
-output "satellite_private_ip"{ value = module.satellite.satellite_private_ip }
-output "satellite_public_ip" { value = module.satellite.satellite_public_ip }
-output "satellite_hostname"  { value = module.satellite.satellite_hostname }
-output "vpc_id"              { value = module.network.vpc_id }
+output "vpc_id" {
+  value       = module.network.vpc_id
+  description = "VPC ID"
+}
+
+output "bastion_public_ip" {
+  value       = module.compute.bastion_public_ip
+  description = "Bastion public IP"
+}
+
+output "bastion_public_dns" {
+  value       = module.compute.bastion_public_dns
+  description = "Bastion public DNS"
+}
+
+output "satellite_public_ips" {
+  value       = module.compute.satellite_public_ips
+  description = "Satellite public IPs (EIP if enabled)"
+}
+
+output "satellite_private_ips" {
+  value       = module.compute.satellite_private_ips
+  description = "Satellite private IPs"
+}
+
+output "ansible_controller_ips" {
+  value       = module.compute.ansible_controller_ips
+  description = "Ansible controller private IPs"
+}
+
+output "eda_ips" {
+  value       = module.compute.eda_ips
+  description = "Ansible EDA private IPs"
+}
+
+output "rhel_generic_ips" {
+  value       = module.compute.rhel_generic_ips
+  description = "Generic RHEL private IPs"
+}
+
+output "all_nodes_by_name" {
+  value       = module.compute.node_ips
+  description = "All nodes (name => {private_ip, public_ip, role})"
+}
