@@ -1,0 +1,19 @@
+- hosts: automationcontroller,aap_db,automationhub,eda_nodes,execution_nodes,satellite
+  become: true
+  gather_facts: true
+  vars:
+    base_packages: [git, curl, wget, tar, unzip, firewalld, chrony, python3, policycoreutils-python-utils]
+  tasks:
+    - name: Ensure packages
+      package: { name: "{{ base_packages }}", state: present }
+
+    - name: Enable services
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: [chronyd, firewalld]
+
+    - name: Set hostname (lab)
+      command: hostnamectl set-hostname {{ inventory_hostname }}
+

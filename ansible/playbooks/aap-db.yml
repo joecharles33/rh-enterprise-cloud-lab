@@ -1,0 +1,46 @@
+- hosts: aap_db
+  become: true
+  vars:
+    pg_version: "{{ aap_db_version }}"
+    db_name: "{{ aap_pgdb }}"
+    db_user: "{{ aap_pguser }}"
+    db_pass: "{{ aap_pgpass }}"
+  tasks:
+    - name: Install Postgres
+      package:
+        name: ["postgresql-server","postgresql"]
+        state: present
+
+    - name: Init DB (idempotent)
+      command: postgresql-setup --initdb
+      args: { creates: /var/lib/pgsql/data/PG_VERSION }
+
+    - name: Configure postgres auth (trust within VPC, md5 for AAP)
+      blockinfile:
+        path: /var/lib/pgsql/data/pg_hba.conf
+        block: |
+          host    all             all             10.0.0.0/8             md5
+          host    all             all             172.16.0.0/12          md5
+          host    all             all             192.168.0.0/16         md5
+          local   all             all                                     peer
+
+    - name: Listen on all interfaces
+      lineinfile:
+        path: /var/lib/pgsql/data/postgresql.conf
+        regexp: '^#?listen_addresses ='
+        line: "listen_addresses = '*'"
+
+    - name: Start Postgres
+      service: { name: postgresql, state: started, enabled: yes }
+
+    - name: Set postgres password
+      become_user: postgres
+      command: psql -c "ALTER USER postgres WITH PASSWORD '{{ aap_db_password }}';"
+
+    - name: Create AAP DB + user
+      become_user: postgres
+      shell: |
+        psql -tc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'" | grep -q 1 || psql -c "CREATE DATABASE {{ db_name }};"
+        psql -tc "SELECT 1 FROM pg_roles WHERE rolname='{{ db_user }}'" | grep -q 1 || psql -c "CREATE USER {{ db_user }} WITH PASSWORD '{{ db_pass }}';"
+        psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ db_name }} TO {{ db_user }};"
+

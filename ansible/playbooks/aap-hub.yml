@@ -1,0 +1,27 @@
+- hosts: automationhub
+  become: true
+  vars:
+    work_dir: /opt/aap-install
+  tasks:
+    - name: Reuse bundle as above (copy/get_url then unarchive)  # same as controller
+      debug: msg="Use the same steps to place the bundle in {{ work_dir }}"
+
+    - name: Find bundle dir
+      shell: "ls -d {{ work_dir }}/ansible-automation-platform-setup-bundle-* | head -n1"
+      register: bundle_dir
+
+    - name: Inventory for hub
+      copy:
+        dest: "{{ bundle_dir.stdout }}/inventory"
+        mode: "0644"
+        content: |
+          [automationhub]
+          {{ pah_fqdn }}
+
+          [all:vars]
+          automationhub_admin_password='{{ pah_admin_password }}'
+
+    - name: Run setup
+      command: ./setup.sh -i inventory
+      args: { chdir: "{{ bundle_dir.stdout }}" }
+
