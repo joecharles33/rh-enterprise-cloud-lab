@@ -1,0 +1,15 @@
+- hosts: eda_nodes
+  become: true
+  vars:
+    controller_host: "https://{{ aap_fqdn }}"
+    controller_username: "admin"
+    controller_password: "{{ aap_admin_password }}"
+    validate_certs: false
+  tasks:
+    - name: Install EDA (RPMs; for lab keep it simple)
+      package:
+        name: ansible-automation-platform-eda
+        state: present
+    - name: Enable/start EDA services
+      service: { name: aap-eda, state: started, enabled: yes }
+

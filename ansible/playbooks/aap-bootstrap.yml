@@ -1,0 +1,71 @@
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    controller_host: "https://{{ aap_fqdn }}"
+    controller_username: "admin"
+    controller_password: "{{ aap_admin_password }}"
+    verify_ssl: false
+  collections: [awx.awx]
+  tasks:
+    - awx.awx.organization:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ verify_ssl }}"
+        name: "DevLab"
+        state: present
+
+    - awx.awx.inventory:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ verify_ssl }}"
+        name: "DevLab Inventory"
+        organization: "DevLab"
+        state: present
+
+    - awx.awx.inventory_source:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ verify_ssl }}"
+        name: "AWS EC2"
+        inventory: "DevLab Inventory"
+        source: ec2
+        source_vars:
+          regions: ["us-east-1"]
+          filters:
+            tag:Project: "rh-enterprise-cloud-lab"
+          keyed_groups:
+            - key: tags.Role
+        overwrite: true
+        update_on_launch: true
+        state: present
+
+    - awx.awx.project:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ verify_ssl }}"
+        name: "Lab Project"
+        organization: "DevLab"
+        scm_type: git
+        scm_url: "https://github.com/joecharles33/rh-enterprise-cloud-lab.git"
+        scm_branch: "main"
+        update_project_on_launch: true
+        state: present
+
+    - awx.awx.job_template:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ verify_ssl }}"
+        name: "Base Config"
+        organization: "DevLab"
+        inventory: "DevLab Inventory"
+        project: "Lab Project"
+        playbook: "ansible/site.yml"
+        job_type: run
+        state: present
+

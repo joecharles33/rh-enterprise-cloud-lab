@@ -1,0 +1,16 @@
+- hosts: satellite
+  become: true
+  tasks:
+    - command: >
+        subscription-manager register
+        --username {{ rhsm_username }}
+        --password {{ rhsm_password }}
+      when: rhsm_username is defined and rhsm_password is defined
+    - command: subscription-manager attach --auto
+      when: rhsm_username is defined and rhsm_password is defined
+    - command: >
+        subscription-manager repos
+        --enable=rhel-9-for-x86_64-baseos-rpms
+        --enable=rhel-9-for-x86_64-appstream-rpms
+        --enable=satellite-6.15-for-rhel-9-x86_64-rpms
+

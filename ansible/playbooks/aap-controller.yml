@@ -1,0 +1,59 @@
+- hosts: automationcontroller
+  become: true
+  vars:
+    work_dir: /opt/aap-install
+  tasks:
+    - name: Ensure work dir
+      file: { path: "{{ work_dir }}", state: directory, mode: "0755" }
+
+    - name: Copy bundle (if local path set)
+      copy:
+        src: "{{ aap_bundle_local_path }}"
+        dest: "{{ work_dir }}/aap-bundle.tar.gz"
+        mode: "0644"
+      when: aap_bundle_local_path|length > 0
+
+    - name: Download bundle (if URL set)
+      get_url:
+        url: "{{ aap_bundle_url }}"
+        dest: "{{ work_dir }}/aap-bundle.tar.gz"
+        mode: "0644"
+      when: aap_bundle_url is defined and aap_bundle_url|length > 0
+
+    - name: Guard – need a bundle source
+      fail:
+        msg: "Set aap_bundle_local_path or aap_bundle_url."
+      when: (aap_bundle_local_path|length == 0) and (aap_bundle_url|length == 0)
+
+    - name: Extract
+      unarchive:
+        src: "{{ work_dir }}/aap-bundle.tar.gz"
+        dest: "{{ work_dir }}"
+        remote_src: true
+
+    - name: Find bundle dir
+      shell: "ls -d {{ work_dir }}/ansible-automation-platform-setup-bundle-* | head -n1"
+      register: bundle_dir
+
+    - name: Inventory with external DB
+      copy:
+        dest: "{{ bundle_dir.stdout }}/inventory"
+        mode: "0644"
+        content: |
+          [automationcontroller]
+          {{ aap_fqdn }}
+
+          [all:vars]
+          admin_password='{{ aap_admin_password }}'
+
+          pg_host='{{ aap_db_fqdn }}'
+          pg_port='5432'
+          pg_database='{{ aap_pgdb }}'
+          pg_username='{{ aap_pguser }}'
+          pg_password='{{ aap_pgpass }}'
+          pg_sslmode='prefer'
+
+    - name: Run setup
+      command: ./setup.sh -i inventory
+      args: { chdir: "{{ bundle_dir.stdout }}" }
+

@@ -1,0 +1,11 @@
+- hosts: satellite
+  become: true
+  vars: { sat_fqdn: "{{ sat_fqdn }}" }
+  tasks:
+    - command: hostnamectl set-hostname {{ sat_fqdn }}
+    - lineinfile:
+        path: /etc/hosts
+        line: "{{ ansible_default_ipv4.address }} {{ sat_fqdn }}"
+        state: present
+    - firewalld: { service: https, state: enabled, permanent: yes, immediate: yes }
+

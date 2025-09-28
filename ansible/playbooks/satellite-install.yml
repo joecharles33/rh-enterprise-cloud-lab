@@ -1,0 +1,17 @@
+- hosts: satellite
+  become: true
+  vars:
+    org_name: "DevLab"
+    loc_name: "DevDC"
+    sat_admin_password: "{{ sat_admin_password }}"
+  tasks:
+    - package: { name: satellite, state: present }
+    - command: >
+        satellite-installer --scenario satellite
+        --foreman-initial-organization "{{ org_name }}"
+        --foreman-initial-location "{{ loc_name }}"
+        --foreman-initial-admin-username admin
+        --foreman-initial-admin-password "{{ sat_admin_password }}"
+        --foreman-servername "{{ sat_fqdn }}"
+        --capsule-pulp true --foreman-proxy-content true
+
