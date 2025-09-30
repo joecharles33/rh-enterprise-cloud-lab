@@ -4,7 +4,7 @@ ansible_user: ec2-user
 ansible_ssh_private_key_file: "{{ lookup('env','ANSIBLE_PRIVATE_KEY_FILE') | default('~/.ssh/id_rsa', true) }}"
 
 # Optional: let you pass ProxyJump or other SSH args via env (leave empty if not set)
-ansible_ssh_common_args: "{{ lookup('env','ANSIBLE_SSH_ARGS') | default('', true) }}"
+#ansible_ssh_common_args: "{{ lookup('env','ANSIBLE_SSH_ARGS') | default('', true) }}"
 
 lab_domain: "dev.lab"
 
