@@ -9,7 +9,7 @@ ansible_ssh_private_key_file: "{{ lookup('env','ANSIBLE_PRIVATE_KEY_FILE') | def
 lab_domain: "dev.lab"
 
 # AAP bundle source (use exactly one)
-aap_bundle_local_path: "~/Downloads/ansible-automation-platform-containerized-setup-bundle-2.5-18-x86_64.tar.gz"   # e.g. "/Users/you/Downloads/ansible-automation-platform-setup-bundle-<ver>.tar.gz"
+aap_bundle_local_path: "~/Downloads/ansible-automation-platform-setup-bundle-2.5-18-x86_64.tar.gz"   # e.g. "/Users/you/Downloads/ansible-automation-platform-setup-bundle-<ver>.tar.gz"
 #aap_bundle_url: ""          # e.g. "https://<presigned>/aap-bundle.tar.gz"
 
 # AAP
